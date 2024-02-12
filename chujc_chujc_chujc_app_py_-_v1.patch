@@ -1,0 +1,433 @@
+Subject: [PATCH] chujc
+chujc
+chujc
+app.py - v1
+---
+Index: app.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app.py b/app.py
+new file mode 100644
+--- /dev/null	(revision 6897b3856bd67df7c93bcd5a398b4e581bdfeb87)
++++ b/app.py	(revision 6897b3856bd67df7c93bcd5a398b4e581bdfeb87)
+@@ -0,0 +1,77 @@
++import mysql.connector
++
++import account
++
++
++def connect_to_database():
++    """
++    Baza danych aplikacji
++    """
++    try:
++        mydb = mysql.connector.connect(
++            host='localhost',
++            user='root',
++            password='',
++            database='python-atm-system'
++        )
++        return mydb
++    except mysql.connector.Error as err:
++        print(f'Połączenie do bazy danych nieudane! {err}')
++        return None
++
++
++def login_panel(database):
++    option = None
++    while option != 'exit':
++        option = input('Wybierz opcje: login, create, exit: ')
++        if option == 'login':  # Logowanie
++            print('\n------ Logowanie ------')
++            logged_user = account.log_into_account(database)
++            if logged_user is not None:
++                atm_panel(database, logged_user)
++        elif option == 'create':  # Tworzenie konta
++            print('\n------ Tworzenie konta ------')
++            account.create_account(database)
++        else:  # Niepoprawna operacja!
++            print('Operacja nieprawidłowa!\n')
++
++    print('Żegnaj!')
++
++
++def atm_panel(database, user):
++    print(f'\nWitaj {user.firstname}!')
++    option = None
++    while option != 'logout':
++        option = input('Wybierz operację\n'
++                       + '-withdrawal\n'
++                       + '-deposit\n'
++                       + '-transfer\n'
++                       + '-pinchange\n'
++                       + '-printdetails\n'
++                       + '-logout\n'
++                       + '>>')
++        if option == 'withdrawal':  # Wpłata na konto
++            pass
++        elif option == 'deposit':  # Wypłata
++            pass
++        elif option == 'transfer':  # Transfer miedzy kontam
++            pass
++        elif option == 'pinchange':  # Zmiana pinu
++            pass
++        elif option == 'printdetails':  # Wydrukowanie detali konta (wyciąg z konta)
++            user.print_details()
++            pass
++        elif option == 'logout':
++            pass
++        else:
++            print('Niepoprawna opcja!')  # Niepoprawna operacja!
++
++
++def run():
++    database = connect_to_database()
++    if database is not None:
++        print('atm-system')
++        login_panel(database)
++
++
++run()
+Index: account.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/account.py b/account.py
+new file mode 100644
+--- /dev/null	(revision 758484465fc785d9cae2ddad2a0932c485182ac8)
++++ b/account.py	(revision 758484465fc785d9cae2ddad2a0932c485182ac8)
+@@ -0,0 +1,170 @@
++import mysql.connector
++import random
++
++
++def is_fullage(value):
++    """
++    Sprawdza wiek podany przez użytkownika
++    :param value: age
++    """
++    if int(value) >= 18:
++        return True
++    else:
++        print('Niepełnoletni nie mogą tworzyć konta!')
++        return False
++
++
++def is_card_exist(database: mysql.connector, cardnumber, pin=None):
++    """
++    Sprawdzenie czy podana karta występuje w bazie danych
++    :param database: baza danych
++    :param cardnumber: numer karty
++    :param pin: pin karty
++    """
++    cursor = database.cursor()
++
++    if pin is None:  # Kiedy pin nie podany
++        sql = ('SELECT card FROM accounts WHERE card=%s')
++        values = (cardnumber,)
++    else:  # Kiedy podano pin
++        sql = ('SELECT card FROM accounts WHERE card=%s AND pin=%s')
++        values = (cardnumber, pin)
++
++    cursor.execute(sql, values)
++    result = cursor.fetchone()
++    cursor.close()
++
++    if result is not None:
++        return True  # Kiedy istnieje
++    else:
++        return False  # Kiedy nie istnieje
++
++
++def log_into_account(database):
++    """
++    Funkcja logowania do konta
++    """
++    cardnumber = input('Podaj numer karty >> ')
++    pin = input('Podaj pin >> ')
++    print('Sprawdzam...')
++    if is_card_exist(database, cardnumber, pin):
++        account = get_account_from_database(database, cardnumber)
++        print('Pomyślnie zalogowano!')  # Logowanie udane
++        return account
++    else:
++        print('Logowanie nieudane!')  # Logowanie nieudane
++        return None
++
++
++def create_account(database):
++    """
++    Funkcja tworzenia konta
++    """
++    # Imie
++    firstname = input('Podaj imię >> ')
++    # Nazwisko
++    lastname = input('Podaj nazwisko >> ')
++    # Numer karty
++    while True:
++        card_no = random.randint(1000, 9999)
++        if not is_card_exist(database, card_no):
++            break
++    print('Twoj numer karty >>', card_no)
++    # Pin
++    pin = input('Ustaw pin >> ')
++    # Balans
++    balance = 0
++    acc = Account(firstname, lastname, card_no, pin, balance)
++    acc.add_account_to_database(database)
++    acc.print_information()
++
++
++def get_account_from_database(database, cardnumber):
++    """
++    Zwraca obiekt Account z bazy danych
++    """
++    try:
++        cursor = database.cursor()
++
++        sql = f'SELECT firstname, lastname, card, pin, balance FROM accounts WHERE card={cardnumber}'
++        cursor.execute(sql)
++
++        result = cursor.fetchone()
++        if result:
++            account = Account(
++                result[0],
++                result[1],
++                result[2],
++                result[3],
++                result[4]
++            )
++            cursor.close()
++
++            return account
++
++    except mysql.connector.Error as err:
++        print(err)
++        return None
++
++
++class Account:
++
++    def __init__(self, firstname, lastname, cardnumber, pin, balance):
++        self.firstname = firstname
++        self.lastname = lastname
++        self.cardnumber = cardnumber
++        self.pin = pin
++        self.balance = balance
++
++    def set_firstname(self, value):
++        self.firstname = value
++
++    def set_lastname(self, value):
++        self.lastname = value
++
++    def set_cardnumber(self, value):
++        self.cardnumber = value
++
++    def set_pin(self, value):
++        self.pin = value
++
++    def set_balance(self, value):
++        self.balance = value
++
++    def print_details(self):
++        print(f'\n------ Twoj wyciąg ------\n'
++              + f'Właściciel: {self.firstname} {self.lastname}\n'
++              + f'Nr.Karty: {self.cardnumber}\n'
++              + f'Balans: {self.balance}\n')
++
++    def print_information(self):
++        print('\n------ Twoja karta ------\n'
++              + 'Posiadacz: ' + self.firstname + ' ' + self.lastname + '\n'
++              + 'Numer: ' + str(self.cardnumber) + '\n'
++              + 'Pin: ' + str(self.pin) + '\n')
++
++    def add_account_to_database(self, database):
++        """
++        Wykonywanie zapytania do bazy danych o dodanie nowego rekordu (nowe konto)
++        """
++        cursor = database.cursor()
++
++        sql = ('INSERT INTO accounts (firstname, lastname, card, pin, balance) '
++               'VALUES (%s, %s, %s, %s, %s)')
++        values = (self.firstname, self.lastname, self.cardnumber, self.pin, self.balance)
++
++        cursor.execute(sql, values)
++        database.commit()
++        cursor.close()
++
++    def deposit(self, database):
++        amount = input('Podaj kwote do wpłaty: ')
++        cursor = database.cursor()
++
++        sql = ('INSERT INTO deposits (firstname, lastname, amount) '
++               'VALUES (%s, %s, %s)')
++        values = (self.firstname, self.lastname, amount)
++
++        cursor.execute(sql, values)
++        database.commit()
++        cursor.close()
+Index: .idea/.gitignore
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/.gitignore b/.idea/.gitignore
+new file mode 100644
+--- /dev/null	(revision f79872e2b2a884b93e4cfd1f5074d158bcb8f62f)
++++ b/.idea/.gitignore	(revision f79872e2b2a884b93e4cfd1f5074d158bcb8f62f)
+@@ -0,0 +1,8 @@
++# Default ignored files
++/shelf/
++/workspace.xml
++# Editor-based HTTP Client requests
++/httpRequests/
++# Datasource local storage ignored files
++/dataSources/
++/dataSources.local.xml
+Index: .idea/atm-system.iml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/atm-system.iml b/.idea/atm-system.iml
+new file mode 100644
+--- /dev/null	(revision 9980c5880eb70b13161d62a9d14ea721c434f3de)
++++ b/.idea/atm-system.iml	(revision 9980c5880eb70b13161d62a9d14ea721c434f3de)
+@@ -0,0 +1,8 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<module type="PYTHON_MODULE" version="4">
++  <component name="NewModuleRootManager">
++    <content url="file://$MODULE_DIR$" />
++    <orderEntry type="jdk" jdkName="Python 3.12 (atm-system)" jdkType="Python SDK" />
++    <orderEntry type="sourceFolder" forTests="false" />
++  </component>
++</module>
+\ No newline at end of file
+Index: .idea/inspectionProfiles/Project_Default.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/inspectionProfiles/Project_Default.xml b/.idea/inspectionProfiles/Project_Default.xml
+new file mode 100644
+--- /dev/null	(revision 9980c5880eb70b13161d62a9d14ea721c434f3de)
++++ b/.idea/inspectionProfiles/Project_Default.xml	(revision 9980c5880eb70b13161d62a9d14ea721c434f3de)
+@@ -0,0 +1,25 @@
++<component name="InspectionProjectProfileManager">
++  <profile version="1.0">
++    <option name="myName" value="Project Default" />
++    <inspection_tool class="PyShadowingBuiltinsInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
++      <option name="ignoredNames">
++        <list>
++          <option value="sum" />
++          <option value="list" />
++        </list>
++      </option>
++    </inspection_tool>
++    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
++      <option name="ignoredIdentifiers">
++        <list>
++          <option value="str.i" />
++        </list>
++      </option>
++    </inspection_tool>
++    <inspection_tool class="SpellCheckingInspection" enabled="false" level="TYPO" enabled_by_default="false">
++      <option name="processCode" value="true" />
++      <option name="processLiterals" value="true" />
++      <option name="processComments" value="true" />
++    </inspection_tool>
++  </profile>
++</component>
+\ No newline at end of file
+Index: .idea/inspectionProfiles/profiles_settings.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/inspectionProfiles/profiles_settings.xml b/.idea/inspectionProfiles/profiles_settings.xml
+new file mode 100644
+--- /dev/null	(revision 9980c5880eb70b13161d62a9d14ea721c434f3de)
++++ b/.idea/inspectionProfiles/profiles_settings.xml	(revision 9980c5880eb70b13161d62a9d14ea721c434f3de)
+@@ -0,0 +1,6 @@
++<component name="InspectionProjectProfileManager">
++  <settings>
++    <option name="USE_PROJECT_PROFILE" value="false" />
++    <version value="1.0" />
++  </settings>
++</component>
+\ No newline at end of file
+Index: .idea/misc.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/misc.xml b/.idea/misc.xml
+new file mode 100644
+--- /dev/null	(revision 9980c5880eb70b13161d62a9d14ea721c434f3de)
++++ b/.idea/misc.xml	(revision 9980c5880eb70b13161d62a9d14ea721c434f3de)
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project version="4">
++  <component name="Black">
++    <option name="sdkName" value="Python 3.12 (atm-system) (2)" />
++  </component>
++  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.12 (atm-system)" project-jdk-type="Python SDK" />
++</project>
+\ No newline at end of file
+Index: .idea/modules.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/modules.xml b/.idea/modules.xml
+new file mode 100644
+--- /dev/null	(revision 9980c5880eb70b13161d62a9d14ea721c434f3de)
++++ b/.idea/modules.xml	(revision 9980c5880eb70b13161d62a9d14ea721c434f3de)
+@@ -0,0 +1,8 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project version="4">
++  <component name="ProjectModuleManager">
++    <modules>
++      <module fileurl="file://$PROJECT_DIR$/.idea/atm-system.iml" filepath="$PROJECT_DIR$/.idea/atm-system.iml" />
++    </modules>
++  </component>
++</project>
+\ No newline at end of file
+Index: .idea/sqldialects.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/sqldialects.xml b/.idea/sqldialects.xml
+new file mode 100644
+--- /dev/null	(revision 9980c5880eb70b13161d62a9d14ea721c434f3de)
++++ b/.idea/sqldialects.xml	(revision 9980c5880eb70b13161d62a9d14ea721c434f3de)
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project version="4">
++  <component name="SqlDialectMappings">
++    <file url="file://$PROJECT_DIR$/account.py" dialect="GenericSQL" />
++  </component>
++</project>
+\ No newline at end of file
+Index: .idea/vcs.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/vcs.xml b/.idea/vcs.xml
+new file mode 100644
+--- /dev/null	(revision 9980c5880eb70b13161d62a9d14ea721c434f3de)
++++ b/.idea/vcs.xml	(revision 9980c5880eb70b13161d62a9d14ea721c434f3de)
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project version="4">
++  <component name="VcsDirectoryMappings">
++    <mapping directory="$PROJECT_DIR$" vcs="Git" />
++  </component>
++</project>
+\ No newline at end of file
